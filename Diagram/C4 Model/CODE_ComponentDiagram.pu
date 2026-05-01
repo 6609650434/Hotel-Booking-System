@@ -1,0 +1,35 @@
+@startuml
+!include <C4/C4_Component>
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_TOP_DOWN()
+
+title Component Diagram for Booking Service
+
+Container(gateway, "API Gateway", "Go / Nginx", "Routes incoming booking requests to this service.")
+
+Container_Boundary(booking_srv, "Booking Service") {
+    
+    Component(booking_ctrl, "Booking Controller", "Gin Web Framework", "Receives REST requests, validates payload, and extracts JWT claims.")
+    Component(booking_logic, "Booking Orchestrator / Logic", "Go Service Layer", "Manages the core business logic, workflow (Pending -> Confirmed -> Expired), and coordinates components.")
+    Component(lock_manager, "Inventory Lock Manager", "Go logic / Redis Client", "Handles the critical section of acquiring and releasing atomic locks in Redis.")
+    Component(booking_repo, "Booking Repository", "GORM", "Handles data access logic for persisting booking transactions.")
+    Component(event_publisher, "Event Publisher", "AMQP Client", "Formats and sends events to the Message Queue.")
+}
+
+ContainerDb(redis, "Redis", "Distributed Lock", "Holds the atomic lock state and inventory cache.")
+ContainerDb(booking_db, "Booking DB", "PostgreSQL", "Stores the actual booking records and their statuses.")
+ContainerQueue(mq, "Message Queue", "RabbitMQ / Kafka", "Receives asynchronous tasks (e.g., timeout scheduling).")
+Container(inventory_srv, "Inventory Service", "Go / Gin", "External service called to check initial availability if needed.")
+
+Rel_D(gateway, booking_ctrl, "Makes API calls to /v1/bookings", "JSON/REST")
+Rel_D(booking_ctrl, booking_logic, "Passes validated data to", "Internal Call")
+Rel_D(booking_logic, lock_manager, "Requests atomic lock via")
+Rel_D(lock_manager, redis, "Executes SETNX / DECR on", "Redis Command")
+Rel_D(booking_logic, inventory_srv, "Verifies availability (fallback)", "gRPC/REST")
+Rel_D(booking_logic, booking_repo, "Creates/Updates booking state via")
+Rel_D(booking_repo, booking_db, "Executes SQL operations against", "SQL")
+Rel_D(booking_logic, event_publisher, "Triggers expiry or notification event via")
+Rel_D(event_publisher, mq, "Publishes message to", "AMQP")
+
+@enduml

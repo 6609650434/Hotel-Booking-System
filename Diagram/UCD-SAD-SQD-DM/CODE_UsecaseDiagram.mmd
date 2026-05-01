@@ -1,0 +1,50 @@
+flowchart LR
+
+%% Actors
+subgraph ACT[ ]
+direction TB
+U[User]
+PG[Payment Gateway]
+ES[Email Service]
+end
+
+%% System
+subgraph SYS[Hotel Booking System]
+direction TB
+
+UC01((UC-01 Search Rooms))
+UC02((UC-02 View Room Details))
+UC03((UC-03 Select Rooms))
+UC04((UC-04 Create Reservation))
+UC05((UC-05 Lock Room Hold))
+UC06((UC-06 Make Payment))
+UC07((UC-07 Confirm Booking))
+UC08((UC-08 Send Confirmation Email))
+UC09((UC-09 Cancel Reservation))
+UC10((UC-10 Release Room Lock))
+UC11((UC-11 Handle Concurrent Requests))
+end
+
+style SYS fill:#ffffff,stroke:#333,stroke-width:2px
+style ACT fill:transparent,stroke:transparent
+
+%% Associations
+U --> UC01
+U --> UC02
+U --> UC03
+U --> UC04
+U --> UC06
+U --> UC09
+
+PG --> UC06
+ES --> UC08
+
+%% Relations (Use Case Semantics)
+UC04 -.->|<<include>>| UC05
+UC04 -.->|<<include>>| UC11
+
+UC06 -.->|<<include>>| UC07
+UC07 -.->|<<include>>| UC08
+
+UC09 -.->|<<extend>>| UC04
+UC10 -.->|<<extend>>| UC04

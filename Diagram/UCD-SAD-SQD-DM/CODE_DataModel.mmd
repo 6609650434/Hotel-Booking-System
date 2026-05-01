@@ -1,0 +1,64 @@
+classDiagram
+
+  class RoomType {
+      +typeId: UUID
+      +title: String
+      +basePrice: Decimal
+      +maxOccupancy: int
+      +getPricing(date: Date) Decimal
+      +updateInfo(details: String) void
+  }
+
+  class Room {
+      +roomId: UUID
+      +roomNumber: String
+      +status: String
+      +setMaintenance() void
+      +completeCleaning() void
+      +isAvailable() boolean
+  }
+
+  class RoomInventory {
+      +inventoryId: UUID
+      +typeId: UUID
+      +date: Date
+      +totalUnits: int
+      +availableCount: int
+      +tryAcquireLock(quantity: int) boolean
+      +releaseLock(quantity: int) void
+  }
+
+  class Booking {
+      +bookingId: String
+      +status: String
+      +checkInDate: Date
+      +checkOutDate: Date
+      +lockedAt: Timestamp
+      +expiresAt: Timestamp
+      +confirm() void
+      +handleTimeout() void
+  }
+
+  class Guest {
+      +guestId: UUID
+      +fullName: String
+      +email: String
+      +phone: String
+      +getBookingHistory() List
+  }
+
+  class Payment {
+      +paymentId: UUID
+      +amount: Decimal
+      +status: String
+      +paymentMethod: String
+      +transactionId: String
+      +processPayment() boolean
+  }
+
+  %% Relationships
+  RoomType "1" *-- "*" Room
+  RoomType "1" -- "*" RoomInventory
+  RoomInventory "1" -- "*" Booking
+  Guest "1" -- "*" Booking
+  Booking "1" *-- "1" Payment

@@ -1,0 +1,110 @@
+flowchart TD
+  subgraph L1["🔵 Client Layer & Traffic Control"]
+    direction LR
+    WEB(["Web App\nReact / Next.js"])
+    MOB(["Mobile App\niOS / Android"])
+    WAF[/"WAF\nSQLi · DDoS · TLS 1.3"/]
+    LB[/"Load Balancer\nNginx / AWS ALB"/]
+    GW{{"API Gateway\nJWT · Rate Limit · RBAC"}}
+  end
+
+  subgraph L2["🟢 Application Logic (Microservices)"]
+    direction LR
+    AUTH(["Auth Service\nRegister · Login\nJWT issue / refresh"])
+    ROOM(["Room Service\nSearch · getPricing\nreleaseLock"])
+    BOOK(["Booking Service\ntryAcquireLock · confirm\nhandleTimeout"])
+    PAY(["Payment Service\nprocessPayment\nRefund · Webhook"])
+    INV(["Inventory Service\ntryAcquireLock\nreleaseLock · availableCount"])
+    NOTIF(["Notification Service\nEmail · SMS · Push"])
+    MQ[/"Message Queue\nRabbitMQ / SQS\nTimeout Worker"/]
+  end
+
+  subgraph L3["🟠 Cache Layer"]
+    REDIS[("Redis\nSession · JWT blacklist\navailableCount TTL · Dist. Lock")]
+  end
+
+  subgraph L4["🟡 Database Layer"]
+    DB[("PostgreSQL Master\nBooking · Inventory\nGuest · Payment")]
+    REPLICA[("Read Replicas\nSearch · Availability")]
+    S3[("Object Store\nS3 · Room images")]
+  end
+
+  subgraph L5["External Services"]
+    EXTPAY[["Payment Gateway\nOmise / Stripe\nWebhook callback"]]
+  end
+
+  subgraph L6["🔵 Observability"]
+    direction LR
+    PROM(["Prometheus\nScrape · Alertmanager"])
+    GRAF(["Grafana\nDashboard · SLO"])
+    ELK(["ELK Stack\nLogstash · ES · Kibana"])
+  end
+
+  %% ── styles ──
+  classDef client    fill:#DDEEFF,stroke:#85B7EB,color:#0C2A4A
+  classDef security  fill:#FCEBEB,stroke:#F09595,color:#5C1010
+  classDef gateway   fill:#E1F5EE,stroke:#5DCAA5,color:#0A3D29
+  classDef service   fill:#EEEDFE,stroke:#AFA9EC,color:#2A1F6E
+  classDef cache     fill:#FAEEDA,stroke:#EF9F27,color:#5A3200
+  classDef db        fill:#F1EFE8,stroke:#B4B2A9,color:#2C2C2A
+  classDef ext       fill:#E8F5E0,stroke:#97C459,color:#1E3D08
+  classDef queue     fill:#FAECE7,stroke:#F0997B,color:#5C2010
+  classDef observe   fill:#E6F1FB,stroke:#85B7EB,color:#0C2A4A
+
+  class WEB,MOB client
+  class WAF,LB security
+  class GW gateway
+  class AUTH,ROOM,BOOK,PAY,INV,NOTIF service
+  class MQ queue
+  class REDIS cache
+  class DB,REPLICA,S3 db
+  class EXTPAY ext
+  class PROM,GRAF,ELK observe
+
+  %% ── L1 internal ──
+  WEB -->|HTTPS| WAF
+  MOB -->|HTTPS| WAF
+  WAF -->|Clean traffic| LB
+  LB -->|API Request| GW
+
+  %% ── L1 → L2 ──
+  GW -->|Verify JWT| AUTH
+  AUTH -->|valid / invalid| GW
+  GW -->|Route| ROOM
+  GW -->|Route| BOOK
+  GW -->|Route| PAY
+
+  %% ── L2 internal ──
+  ROOM -->|availableCount| BOOK
+  BOOK -->|processPayment| PAY
+  BOOK -->|tryAcquireLock| INV
+  ROOM -->|releaseLock| INV
+  PAY -->|Publish payment.success| MQ
+  BOOK -->|Publish booking.created| MQ
+  MQ -->|Consume event| NOTIF
+  MQ -->|releaseLock timeout| BOOK
+  AUTH -->|Welcome email| NOTIF
+
+  %% ── L2 → L3 ──
+  AUTH -->|Store session / blacklist| REDIS
+  ROOM -->|Cache check hit/miss| REDIS
+  BOOK -->|Distributed lock| REDIS
+
+  %% ── L2 → L4 ──
+  AUTH -->|Read/Write Guest| DB
+  BOOK -->|Read/Write Booking| DB
+  PAY -->|Read/Write Payment| DB
+  INV -->|Read/Write Inventory| DB
+  ROOM -->|Query rooms| REPLICA
+  ROOM -->|Fetch image| S3
+  DB -->|Replicate| REPLICA
+
+  %% ── L2 → L5 ──
+  PAY -->|Charge card| EXTPAY
+  EXTPAY -->|Webhook result| PAY
+
+  %% ── All → L6 ──
+  BOOK -->|Metrics| PROM
+  AUTH -->|Logs| ELK
+  PAY -->|Logs| ELK
+  PROM -->|Query| GRAF

@@ -1,0 +1,46 @@
+sequenceDiagram
+    autonumber
+    actor Guest as Customer (Client)
+    participant GW as API Gateway
+    participant BOOK as Booking Service
+    participant REDIS as Redis (Distributed Lock)
+    participant DB as PostgreSQL
+    participant MQ as Message Queue
+
+    Note over Guest, DB: Phase: The Locking Phase (Atomic Operation)
+
+    Guest->>GW: Click "Book Now" (RoomTypeID, Dates)
+    GW->>BOOK: Request Booking
+    
+    rect rgb(240, 240, 240)
+        Note right of REDIS: Atomic Check-and-Decrement
+        BOOK->>REDIS: DECR inventory:{RoomTypeID}:{Date}
+        REDIS-->>BOOK: Current Count (after decrement)
+    end
+
+    alt if Count < 0
+        Note over BOOK, REDIS: Race Condition Prevented
+        BOOK->>REDIS: INCR inventory:{RoomTypeID}:{Date} (Rollback)
+        BOOK-->>Guest: Error: Room Sold Out
+    else if Count >= 0
+        Note over BOOK, DB: Atomic Success
+        BOOK->>DB: CREATE Booking (Status: PENDING_LOCK)
+        DB-->>BOOK: BookingID, expiresAt
+        
+        BOOK->>MQ: Schedule Expiry Task (Delay: 15m)
+        
+        BOOK-->>Guest: Success: Proceed to Payment (15m remaining)
+    end
+
+    Note over Guest, MQ: Phase: Finalizing or Timeout
+
+    alt Payment Success
+        Guest->>BOOK: Payment Completed
+        BOOK->>DB: UPDATE Booking (Status: CONFIRMED)
+        BOOK-->>Guest: Booking Confirmed!
+    else Payment Fails / Timeout (15m)
+        MQ->>BOOK: Trigger HandleTimeout
+        BOOK->>DB: UPDATE Booking (Status: EXPIRED)
+        BOOK->>REDIS: INCR inventory:{RoomTypeID}:{Date} (Release Lock)
+        Note right of REDIS: Room available for others
+    end

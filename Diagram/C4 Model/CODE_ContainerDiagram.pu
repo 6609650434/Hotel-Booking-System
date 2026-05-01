@@ -1,0 +1,62 @@
+@startuml
+!include <C4/C4_Container>
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_TOP_DOWN()
+
+title Container Diagram for Hotel Booking System
+
+Person(guest, "Customer / Guest", "A user who wants to search for and book hotel rooms.")
+Person(admin, "Hotel Staff / Admin", "Manages room data and monitors bookings.")
+
+System_Boundary(c1, "Hotel Booking Management System") {
+    
+    Container(frontend, "Frontend Application", "React / Next.js", "Provides functionality to customers and hotel staff.")
+    Container(gateway, "API Gateway & Load Balancer", "Go / Nginx", "Handles Request Routing, Auth (JWT), and Load Balancing.")
+
+    System_Boundary(microservices, "Microservices") {
+        Container(room_srv, "Room & Search Service", "Go / Gin", "Manages room details and search functionality.")
+        Container(booking_srv, "Booking Service", "Go / Gin", "Orchestrates booking logic and state transitions.")
+        Container(inventory_srv, "Inventory Service", "Go / Gin", "Manages real-time room availability and atomic locking.")
+        Container(payment_srv, "Payment Service", "Go / Gin", "Integrates with external payment providers.")
+    }
+
+    System_Boundary(databases, "Databases & Infrastructure") {
+        ContainerDb(room_db, "Room DB", "PostgreSQL", "Stores room types and details.")
+        ContainerDb(booking_db, "Booking DB", "PostgreSQL", "Stores booking transactions.")
+        ContainerDb(inventory_db, "Inventory DB", "PostgreSQL", "Stores daily room stock.")
+        ContainerDb(redis, "Redis Cache & Lock", "Redis", "Used for Distributed Locks and caching frequent search data.")
+    }
+    
+    System_Boundary(async_layer, "Event-Driven Processing") {
+        ContainerQueue(mq, "Message Queue", "RabbitMQ / Kafka", "Manages events like notifications or timeout cancellations.")
+        Container(notif_srv, "Notification Service", "Go", "Consumes events to send Emails / Push Notifications.")
+    }
+}
+
+System_Ext(payment_gw, "Payment Gateway", "External API")
+System_Ext(email_srv, "Email Service", "External SMTP/API")
+
+Rel_D(guest, frontend, "Uses", "HTTPS")
+Rel_D(admin, frontend, "Uses", "HTTPS")
+Rel_D(frontend, gateway, "Sends Requests", "JSON/HTTPS")
+
+Rel_D(gateway, room_srv, "Routes Search", "REST")
+Rel_D(gateway, booking_srv, "Routes Booking", "REST")
+Rel_D(gateway, inventory_srv, "Routes Inventory", "REST")
+Rel_D(gateway, payment_srv, "Routes Payment", "REST")
+
+Rel_D(room_srv, room_db, "Reads/Writes", "SQL")
+Rel_D(room_srv, redis, "Caches data", "Read")
+
+Rel_D(booking_srv, booking_db, "Manages bookings", "SQL")
+Rel_D(inventory_srv, inventory_db, "Updates stock", "SQL")
+Rel_D(inventory_srv, redis, "Atomic Lock", "Redlock")
+
+Rel_D(booking_srv, mq, "Publishes events", "Async")
+Rel_D(mq, notif_srv, "Consumes events", "Async")
+
+Rel_D(payment_srv, payment_gw, "Processes via", "REST")
+Rel_R(notif_srv, email_srv, "Sends via", "API")
+
+@enduml

@@ -1,0 +1,67 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+title C4 Level 4: Code Diagram (Booking Service)
+
+package "Delivery Layer (HTTP/REST)" {
+    class BookingController {
+        - bookingService: BookingService
+        + CreateBooking(req: CreateBookingDTO): Response
+        + ConfirmPayment(bookingID: UUID): Response
+    }
+}
+
+package "Service Layer (Business Logic)" {
+    class BookingServiceImpl {
+        - repo: BookingRepository
+        - lockMgr: LockManager
+        - eventPub: EventPublisher
+        + ProcessBooking(req: BookingData): BookingResult
+        + HandleTimeout(bookingID: UUID): error
+    }
+}
+
+package "Domain Layer (Ports)" {
+    interface BookingRepository <<interface>> {
+        + Save(b: Booking): error
+        + UpdateStatus(id: UUID, status: String): error
+    }
+    
+    interface LockManager <<interface>> {
+        + AcquireLock(roomID: String): int
+        + ReleaseLock(roomID: String): void
+    }
+    
+    interface EventPublisher <<interface>> {
+        + PublishTimeoutTask(bookingID: UUID, delay: duration): error
+    }
+}
+
+package "Infrastructure Layer (Adapters)" {
+    class PostgresBookingRepo <<GORM>> {
+        + Save(b: Booking): error
+        + UpdateStatus(id: UUID, status: String): error
+    }
+    
+    class RedisLockManager <<RedisClient>> {
+        + AcquireLock(roomID: String): int
+        + ReleaseLock(roomID: String): void
+    }
+}
+
+' Relationships
+BookingController --> BookingServiceImpl : uses
+BookingServiceImpl ..|> BookingRepository : ports
+BookingServiceImpl ..|> LockManager : ports
+BookingServiceImpl ..|> EventPublisher : ports
+
+PostgresBookingRepo ..|> BookingRepository : implements
+RedisLockManager ..|> LockManager : implements
+
+note right of BookingServiceImpl
+  ใช้ Dependency Injection (DI)
+  เพื่อลดความผูกพัน (Coupling)
+  ระหว่าง Logic และ Database
+end note
+
+@enduml

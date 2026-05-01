@@ -1,0 +1,20 @@
+C4Context
+title System Context Diagram for Hotel Booking System
+
+Person(guest, "Customer / Guest", "A user who wants to search for and book hotel rooms.")
+Person(admin, "Hotel Staff / Admin", "Manages room data and monitors bookings.")
+
+Enterprise_Boundary(b0, "Hotel Ecosystem") {
+    System(hotel_system, "Hotel Booking Management System", "Allows customers to search and book rooms, and staff to manage operations.")
+}
+
+Rel_R(email_srv, guest, "Sends confirmation emails to")
+System_Ext(payment_gw, "Payment Gateway", "External API for processing payments (e.g., Stripe, Omise).")
+System_Ext(email_srv, "Email Service", "External system for sending confirmation notifications.")
+
+Rel_D(guest, hotel_system, "Searches rooms, makes bookings, and pays", "HTTPS")
+Rel_D(admin, hotel_system, "Manages inventory and views bookings", "HTTPS")
+
+Rel_D(hotel_system, payment_gw, "Sends payment requests and receives status", "REST API")
+Rel_D(hotel_system, email_srv, "Triggers email notifications", "API/SMTP")
+
